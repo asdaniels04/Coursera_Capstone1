@@ -1,0 +1,502 @@
+import types
+import pandas as pd
+from botocore.client import Config
+import ibm_boto3
+
+def __iter__(self): return 0
+
+# @hidden_cell
+
+# add missing __iter__ method, so pandas accepts body as file-like object
+if not hasattr(body, "__iter__"): body.__iter__ = types.MethodType( __iter__, body )
+
+df = pd.read_csv(body)
+df.head()
+
+SEVERITYCODE	X	Y	OBJECTID	INCKEY	COLDETKEY	REPORTNO	STATUS	ADDRTYPE	INTKEY	...	ROADCOND	LIGHTCOND	PEDROWNOTGRNT	SDOTCOLNUM	SPEEDING	ST_COLCODE	ST_COLDESC	SEGLANEKEY	CROSSWALKKEY	HITPARKEDCAR
+0	2	-122.323148	47.703140	1	1307	1307	3502005	Matched	Intersection	37475.0	...	Wet	Daylight	NaN	NaN	NaN	10	Entering at angle	0	0	N
+1	1	-122.347294	47.647172	2	52200	52200	2607959	Matched	Block	NaN	...	Wet	Dark - Street Lights On	NaN	6354039.0	NaN	11	From same direction - both going straight - bo...	0	0	N
+2	1	-122.334540	47.607871	3	26700	26700	1482393	Matched	Block	NaN	...	Dry	Daylight	NaN	4323031.0	NaN	32	One parked--one moving	0	0	N
+3	1	-122.334803	47.604803	4	1144	1144	3503937	Matched	Block	NaN	...	Dry	Daylight	NaN	NaN	NaN	23	From same direction - all others	0	0	N
+4	2	-122.306426	47.545739	5	17700	17700	1807429	Matched	Intersection	34387.0	...	Wet	Daylight	NaN	4028032.0	NaN	10	Entering at angle	0	0	N
+5 rows × 38 columns
+In [163]:
+df.shape
+Out[163]:
+(194673, 38)
+In [164]:
+df.dtypes
+Out[164]:
+SEVERITYCODE        int64
+X                 float64
+Y                 float64
+OBJECTID            int64
+INCKEY              int64
+COLDETKEY           int64
+REPORTNO           object
+STATUS             object
+ADDRTYPE           object
+INTKEY            float64
+LOCATION           object
+EXCEPTRSNCODE      object
+EXCEPTRSNDESC      object
+SEVERITYCODE.1      int64
+SEVERITYDESC       object
+COLLISIONTYPE      object
+PERSONCOUNT         int64
+PEDCOUNT            int64
+PEDCYLCOUNT         int64
+VEHCOUNT            int64
+INCDATE            object
+INCDTTM            object
+JUNCTIONTYPE       object
+SDOT_COLCODE        int64
+SDOT_COLDESC       object
+INATTENTIONIND     object
+UNDERINFL          object
+WEATHER            object
+ROADCOND           object
+LIGHTCOND          object
+PEDROWNOTGRNT      object
+SDOTCOLNUM        float64
+SPEEDING           object
+ST_COLCODE         object
+ST_COLDESC         object
+SEGLANEKEY          int64
+CROSSWALKKEY        int64
+HITPARKEDCAR       object
+dtype: object
+Since the capstone case study suggests predicting car accident severity from 'weather' and 'road conditions'; for this project, "environmental variables" will be explored: variables corresponding to external conditions, not related to the driver, passengers or the car itself.
+In [165]:
+# Target variable: 'SEVERITYCODE'
+
+df['SEVERITYCODE'].value_counts().to_frame()
+Out[165]:
+SEVERITYCODE
+1	136485
+2	58188
+In [166]:
+# Environmental variable 1: 'WEATHER'
+
+df['WEATHER'].value_counts().to_frame()
+Out[166]:
+WEATHER
+Clear	111135
+Raining	33145
+Overcast	27714
+Unknown	15091
+Snowing	907
+Other	832
+Fog/Smog/Smoke	569
+Sleet/Hail/Freezing Rain	113
+Blowing Sand/Dirt	56
+Severe Crosswind	25
+Partly Cloudy	5
+In [167]:
+# Environmental variable 2: 'LIGHTCOND'
+
+df['LIGHTCOND'].value_counts().to_frame()
+Out[167]:
+LIGHTCOND
+Daylight	116137
+Dark - Street Lights On	48507
+Unknown	13473
+Dusk	5902
+Dawn	2502
+Dark - No Street Lights	1537
+Dark - Street Lights Off	1199
+Other	235
+Dark - Unknown Lighting	11
+In [168]:
+# Environmental variable 3: 'ROADCOND'
+
+df['ROADCOND'].value_counts().to_frame()
+Out[168]:
+ROADCOND
+Dry	124510
+Wet	47474
+Unknown	15078
+Ice	1209
+Snow/Slush	1004
+Other	132
+Standing Water	115
+Sand/Mud/Dirt	75
+Oil	64
+In [169]:
+# Environmental variable 4: 'INCDTTM' (DATE AND TIME)
+
+df['INCDTTM'].value_counts().to_frame()
+Out[169]:
+INCDTTM
+11/2/2006	96
+10/3/2008	91
+11/5/2005	83
+12/4/2004	74
+6/1/2006	73
+11/4/2006	70
+11/4/2005	69
+1/5/2007	68
+5/5/2006	68
+4/8/2006	68
+11/6/2006	68
+11/1/2005	67
+11/1/2008	67
+10/6/2006	65
+3/8/2006	65
+11/3/2006	64
+1/9/2006	64
+1/2/2004	64
+8/6/2004	62
+10/6/2005	62
+6/9/2005	61
+7/8/2005	61
+4/3/2006	60
+11/6/2008	60
+10/2/2007	60
+5/6/2009	60
+2/5/2008	59
+2/2/2006	59
+6/1/2007	59
+12/1/2005	58
+...	...
+12/30/2005 6:37:00 PM	1
+1/30/2019 9:45:00 AM	1
+9/24/2006 5:41:00 PM	1
+12/11/2006 5:00:00 PM	1
+12/1/2017 6:09:00 PM	1
+5/6/2014 12:10:00 PM	1
+9/29/2015 9:26:00 PM	1
+8/6/2019 11:05:00 AM	1
+3/13/2010 8:25:00 PM	1
+7/12/2012 4:36:00 PM	1
+6/25/2018 9:18:00 AM	1
+9/8/2017 3:28:00 PM	1
+6/25/2017 9:10:00 AM	1
+7/21/2015 2:34:00 PM	1
+12/19/2005 9:39:00 AM	1
+2/21/2009 11:21:00 AM	1
+8/18/2007 4:50:00 PM	1
+7/13/2007 11:00:00 PM	1
+3/21/2006 11:27:00 AM	1
+4/16/2009 2:34:00 AM	1
+7/18/2011 8:02:00 AM	1
+1/22/2009 3:23:00 PM	1
+8/17/2004 3:00:00 PM	1
+9/19/2009 11:36:00 PM	1
+10/15/2007 9:11:00 PM	1
+9/15/2008 5:35:00 PM	1
+12/27/2009 4:15:00 PM	1
+5/16/2007 4:50:00 PM	1
+7/24/2005 5:40:00 PM	1
+10/20/2008 1:00:00 PM	1
+162058 rows × 1 columns
+A new dataframe is generated from the environmental variables considered suitable for analysis. All of them were chosen, except for 'INCDTTM' whose values were not registered properly for a categorical analysis.
+In [170]:
+df_m = df.loc[:, ['SEVERITYCODE', 'WEATHER', 'LIGHTCOND', 'ROADCOND']]
+
+df_m.head()
+Out[170]:
+SEVERITYCODE	WEATHER	LIGHTCOND	ROADCOND
+0	2	Overcast	Daylight	Wet
+1	1	Raining	Dark - Street Lights On	Wet
+2	1	Overcast	Daylight	Dry
+3	1	Clear	Daylight	Dry
+4	2	Raining	Daylight	Wet
+In [171]:
+df_m.isnull().sum()
+Out[171]:
+SEVERITYCODE       0
+WEATHER         5081
+LIGHTCOND       5170
+ROADCOND        5012
+dtype: int64
+In [172]:
+df_m.shape
+Out[172]:
+(194673, 4)
+In [173]:
+df_m.dropna(axis=0, inplace=True)
+In [174]:
+df_m.isnull().sum()
+Out[174]:
+SEVERITYCODE    0
+WEATHER         0
+LIGHTCOND       0
+ROADCOND        0
+dtype: int64
+In [175]:
+df_m.shape
+Out[175]:
+(189337, 4)
+In order to reduce uncertainty from the model, ambiguous categorical labels belonging to the independent variables (such as "unknown", or "other") are dropped.
+In [176]:
+df_m = df_m.drop(df_m[df_m['WEATHER'] == 'Unknown'].index)
+
+df_m['WEATHER'].value_counts().to_frame()
+Out[176]:
+WEATHER
+Clear	111008
+Raining	33117
+Overcast	27681
+Snowing	901
+Other	824
+Fog/Smog/Smoke	569
+Sleet/Hail/Freezing Rain	113
+Blowing Sand/Dirt	55
+Severe Crosswind	25
+Partly Cloudy	5
+In [177]:
+df_m = df_m.drop(df_m[df_m['WEATHER'] == 'Other'].index)
+
+df_m['WEATHER'].value_counts().to_frame()
+Out[177]:
+WEATHER
+Clear	111008
+Raining	33117
+Overcast	27681
+Snowing	901
+Fog/Smog/Smoke	569
+Sleet/Hail/Freezing Rain	113
+Blowing Sand/Dirt	55
+Severe Crosswind	25
+Partly Cloudy	5
+In [178]:
+df_m = df_m.drop(df_m[df_m['LIGHTCOND'] == 'Unknown'].index)
+
+df_m['LIGHTCOND'].value_counts().to_frame()
+Out[178]:
+LIGHTCOND
+Daylight	113225
+Dark - Street Lights On	46964
+Dusk	5685
+Dawn	2429
+Dark - No Street Lights	1423
+Dark - Street Lights Off	1117
+Other	187
+Dark - Unknown Lighting	9
+In [179]:
+df_m = df_m.drop(df_m[df_m['LIGHTCOND'] == 'Other'].index)
+
+df_m['LIGHTCOND'].value_counts().to_frame()
+Out[179]:
+LIGHTCOND
+Daylight	113225
+Dark - Street Lights On	46964
+Dusk	5685
+Dawn	2429
+Dark - No Street Lights	1423
+Dark - Street Lights Off	1117
+Dark - Unknown Lighting	9
+In [180]:
+df_m = df_m.drop(df_m[df_m['LIGHTCOND'] == 'Dark - Unknown Lighting'].index)
+
+df_m['LIGHTCOND'].value_counts().to_frame()
+Out[180]:
+LIGHTCOND
+Daylight	113225
+Dark - Street Lights On	46964
+Dusk	5685
+Dawn	2429
+Dark - No Street Lights	1423
+Dark - Street Lights Off	1117
+In [181]:
+df_m = df_m.drop(df_m[df_m['ROADCOND'] == 'Unknown'].index)
+
+df_m['ROADCOND'].value_counts().to_frame()
+Out[181]:
+ROADCOND
+Dry	121487
+Wet	46319
+Ice	1080
+Snow/Slush	833
+Standing Water	105
+Other	103
+Sand/Mud/Dirt	65
+Oil	60
+In [182]:
+df_m = df_m.drop(df_m[df_m['ROADCOND'] == 'Other'].index)
+
+df_m['ROADCOND'].value_counts().to_frame()
+Out[182]:
+ROADCOND
+Dry	121487
+Wet	46319
+Ice	1080
+Snow/Slush	833
+Standing Water	105
+Sand/Mud/Dirt	65
+Oil	60
+In [183]:
+df_m.shape
+Out[183]:
+(169949, 4)
+Since the target variable 'SEVERITYCODE' is an ordinal variable that only displays two options (1-property damage; 2-injury), and hence only an absolute value correspoding to one of the options is possible, its type is changed to str.
+The resulting dataframe conveys an analysis between categorical variables.
+In [184]:
+df_m['SEVERITYCODE'] = df_m['SEVERITYCODE'].astype(str)
+In [185]:
+df_m.dtypes
+Out[185]:
+SEVERITYCODE    object
+WEATHER         object
+LIGHTCOND       object
+ROADCOND        object
+dtype: object
+In [186]:
+df_m.describe(include="all")
+Out[186]:
+SEVERITYCODE	WEATHER	LIGHTCOND	ROADCOND
+count	169949	169949	169949	169949
+unique	2	9	6	7
+top	1	Clear	Daylight	Dry
+freq	114269	108822	112618	121487
+Since the model rests solely on categorical variables, the following methods will be used to explore the relationship between each independent variable and the target variable.
+a) a count plot: to visualize the distribution of data.
+b) a contingency table: to display the percentages of the frequency distribution.
+c) a Cramer's V test: to obtain a metric about the correlation between the categorical variables.
+In [187]:
+%%capture
+! pip install seaborn
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+%matplotlib inline
+In [188]:
+! pip install  researchpy
+
+import researchpy as rp
+Requirement already satisfied: researchpy in /opt/conda/envs/Python36/lib/python3.6/site-packages (0.2.3)
+Requirement already satisfied: statsmodels in /opt/conda/envs/Python36/lib/python3.6/site-packages (from researchpy) (0.9.0)
+Requirement already satisfied: scipy in /opt/conda/envs/Python36/lib/python3.6/site-packages (from researchpy) (1.2.0)
+Requirement already satisfied: numpy in /opt/conda/envs/Python36/lib/python3.6/site-packages (from researchpy) (1.15.4)
+Requirement already satisfied: pandas in /opt/conda/envs/Python36/lib/python3.6/site-packages (from researchpy) (0.24.1)
+Requirement already satisfied: python-dateutil>=2.5.0 in /opt/conda/envs/Python36/lib/python3.6/site-packages (from pandas->researchpy) (2.7.5)
+Requirement already satisfied: pytz>=2011k in /opt/conda/envs/Python36/lib/python3.6/site-packages (from pandas->researchpy) (2018.9)
+Requirement already satisfied: six>=1.5 in /opt/conda/envs/Python36/lib/python3.6/site-packages (from python-dateutil>=2.5.0->pandas->researchpy) (1.12.0)
+In [189]:
+# RELATIONSHIP WITH INDEPENDENT VARIABLE 1 'WEATHER'
+In [190]:
+# a) count plot 
+
+fig = plt.gcf()
+
+fig.set_size_inches(17, 7.5)
+
+graph1 = sns.countplot(y='WEATHER', hue='SEVERITYCODE', data=df_m).set_title('FREQUENCY DISTRIBUTION OF CAR ACCIDENT SEVERITY IN RELATION TO WEATHER CONDITIONS')
+
+In [191]:
+#b) contingency table
+
+crosstab1, test_results1 = rp.crosstab(df_m["WEATHER"], df_m["SEVERITYCODE"],
+                                               test= "chi-square",
+                                               prop= "cell")
+
+crosstab1
+Out[191]:
+SEVERITYCODE
+1	2	All
+WEATHER			
+Blowing Sand/Dirt	0.02	0.01	0.03
+Clear	43.10	20.94	64.03
+Fog/Smog/Smoke	0.22	0.11	0.33
+Overcast	10.77	5.07	15.84
+Partly Cloudy	0.00	0.00	0.00
+Raining	12.69	6.52	19.21
+Severe Crosswind	0.01	0.00	0.01
+Sleet/Hail/Freezing Rain	0.05	0.02	0.06
+Snowing	0.39	0.10	0.49
+All	67.24	32.76	100.00
+In [192]:
+#c) Cramer's V test results
+
+test_results1
+Out[192]:
+Chi-square test	results
+0	Pearson Chi-square ( 8.0) =	93.3721
+1	p-value =	0.0000
+2	Cramer's V =	0.0234
+In [193]:
+# RELATIONSHIP WITH INDEPENDENT VARIABLE 2 'LIGHTCOND'
+In [194]:
+# a) count plot
+
+fig = plt.gcf()
+
+fig.set_size_inches(17, 7.5)
+
+graph2 = sns.countplot(y='LIGHTCOND', hue='SEVERITYCODE', data=df_m, palette='Set2').set_title('FREQUENCY DISTRIBUTION OF CAR ACCIDENT SEVERITY IN RELATION TO LIGHTING CONDITIONS')
+
+In [195]:
+# b) contingency table
+
+crosstab2, test_results2 = rp.crosstab(df_m["LIGHTCOND"], df_m["SEVERITYCODE"],
+                                               test= "chi-square",
+                                               prop= "cell")
+
+crosstab2
+Out[195]:
+SEVERITYCODE
+1	2	All
+LIGHTCOND			
+Dark - No Street Lights	0.64	0.19	0.83
+Dark - Street Lights Off	0.47	0.18	0.66
+Dark - Street Lights On	19.11	8.39	27.51
+Dawn	0.95	0.47	1.42
+Daylight	43.86	22.41	66.27
+Dusk	2.21	1.12	3.32
+All	67.24	32.76	100.00
+In [196]:
+# c) Cramer's V test results
+
+test_results2
+Out[196]:
+Chi-square test	results
+0	Pearson Chi-square ( 5.0) =	241.8456
+1	p-value =	0.0000
+2	Cramer's V =	0.0377
+In [197]:
+# RELATIONSHIP WITH INDEPENDENT VARIABLE 3 'ROADCOND'
+In [198]:
+# a) count plot
+
+fig = plt.gcf()
+
+fig.set_size_inches(17, 7.5)
+
+graph3 = sns.countplot(y='ROADCOND', hue='SEVERITYCODE', data=df_m, palette="Set1").set_title('FREQUENCY DISTRIBUTION OF CAR ACCIDENT SEVERITY IN RELATION TO ROAD CONDITIONS')
+
+In [199]:
+# b) contingency table
+
+crosstab3, test_results3 = rp.crosstab(df_m["ROADCOND"], df_m["SEVERITYCODE"],
+                                               test= "chi-square",
+                                               prop= "cell")
+
+crosstab3
+Out[199]:
+SEVERITYCODE
+1	2	All
+ROADCOND			
+Dry	48.15	23.33	71.48
+Ice	0.48	0.15	0.64
+Oil	0.02	0.01	0.04
+Sand/Mud/Dirt	0.03	0.01	0.04
+Snow/Slush	0.40	0.09	0.49
+Standing Water	0.05	0.02	0.06
+Wet	18.12	9.14	27.25
+All	67.24	32.76	100.00
+In [200]:
+# c) Cramer's V test results
+
+test_results3
+Out[200]:
+Chi-square test	results
+0	Pearson Chi-square ( 6.0) =	126.8703
+1	p-value =	0.0000
+2	Cramer's V =	0.0273
+The statistical analysis for the three relationships explored were similar. Here are the results for each of the methods used:
+a) All of the independent variables have their data distributed almost entirely on two categories.
+b) The percentages reveal, furthermore, that all the independent variables have at least one category that contains at least 60% of the data: for 'WEATHER' it is Clear, for 'LIGHTCOND' it is Daylight, and for 'ROADCOND' Dry. Differences for the severity of car accident occur in these categories, and the second highest frequent category in each variable, but are rendered almost imperceptible for the rest of the labels.
+c) The Cramer's V test measures the correlation strength between categorical variables from 0 to 1, based on the results of a Chi-square test (which produce a Pearson Chi-squere and a p-value). All of the relationships reported Cramer's V below 0.05, signaling a very weak relationship. When the Pearson Chi-square is high and the p-value is small, association can be interpreted, which occured for the three relationships; however, large datasets, such as the one used, tend to give such results given their size. The most reliable metric for categorical variables relationships is the Cramer's V.
+None of the so-called environmental variables displayed a relationship predicting the severity of a car accident. Hence, environmental conditions are not good predictors of car accident severity. No predictive model can be obtained out of them.
+Car accident severity might, therefore, be connected to human and machine related variables (those having to do with the driver, the passengers, or the car).
